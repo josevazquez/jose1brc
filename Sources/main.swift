@@ -4,12 +4,19 @@ import Foundation
 struct City {
     var total: Double
     var count: Int
-    var min = Double.greatestFiniteMagnitude
-    var max = -(Double.greatestFiniteMagnitude)
+    var minValue = Double.greatestFiniteMagnitude
+    var maxValue = -(Double.greatestFiniteMagnitude)
 
     init() {
         total = 0
         count = 0
+    }
+    
+    mutating func add(_ value: Double) {
+        total += value
+        count += 1
+        minValue = min(value, minValue)
+        maxValue = max(value, maxValue)
     }
 }
 
@@ -69,27 +76,21 @@ func main() async throws {
     let inputData = try Data(contentsOf: url, options: .mappedIfSafe)
     try inputData.withUnsafeBytes { unsafeRawBufferPointer in
         var city: String
-        var temp: String
+        var temp: Double
         var subbuffer = unsafeRawBufferPointer[...]
         
         while !subbuffer.isEmpty {
             city = try subbuffer.parseUntilSemicolon()
-            temp = try subbuffer.parseUntilNewline()
-            var c = cities[city, default: City()]
-            let val = Double(temp)!
-            c.total += val
-            c.count += 1
-            c.min = min(val, c.min)
-            c.max = max(val, c.max)
-            cities[city] = c
+            temp = try Double(subbuffer.parseUntilNewline())!
+            cities[city, default: City()].add(temp)
         }
     }
     
     for city in cities.keys.sorted() {
         let c = cities[city]!
-        let min = String(format: "%.1f", c.min)
+        let min = String(format: "%.1f", c.minValue)
         let avg = String(format: "%.1f", c.total / Double(c.count))
-        let max = String(format: "%.1f", c.max)
+        let max = String(format: "%.1f", c.maxValue)
         print("\(city)=\(min)/\(avg)/\(max),")
     }
 }
