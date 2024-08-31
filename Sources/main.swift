@@ -123,7 +123,7 @@ func main() async throws {
     }
     
     let file = CommandLine.arguments[1]
-    let partitionCount = CommandLine.arguments.count >= 3 ? Int(CommandLine.arguments[2])! : 8
+    let partitionCount = ProcessInfo().activeProcessorCount
 
     let cwdPath = FileManager.default.currentDirectoryPath
     var url: URL
