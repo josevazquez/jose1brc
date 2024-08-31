@@ -38,24 +38,20 @@ extension [String: City] {
 
 public typealias Subbuffer = Slice<UnsafeRawBufferPointer>
 public extension Subbuffer {
-    func prefix(until predicate: (Self.Element) throws -> Bool) rethrows -> Subbuffer {
-        let start = startIndex
-        var end = endIndex
-        for index in startIndex..<endIndex {
-            if try predicate(self[index]) == false {
-                end = index
-                break
-            }
-        }
-        return self[start..<end]
-    }
     
     var string: String {
         return String(decoding: base[startIndex..<endIndex], as: UTF8.self)
     }
     
     mutating func parseUntilSemicolon() throws -> String {
-        let match = prefix { $0 != 0x3B } // hex ascii code for ;
+        var end = endIndex
+        for index in startIndex..<endIndex {
+            if self[index] == 0x3B {  // hex ascii code for ';'
+                end = index
+                break
+            }
+        }
+        let match = self[startIndex..<end]
         self = dropFirst(match.count + 1)
         return match.string
     }
