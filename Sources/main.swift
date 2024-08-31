@@ -18,6 +18,22 @@ struct City {
         minValue = min(value, minValue)
         maxValue = max(value, maxValue)
     }
+    
+    mutating func merge(_ other: City) {
+        total += other.total
+        count += other.count
+        minValue = min(minValue, other.minValue)
+        maxValue = max(maxValue, other.maxValue)
+    }
+}
+
+extension [String: City] {
+    mutating func merge(_ other: [String: City]) {
+        let mergedKeys = Set(keys).union(other.keys)
+        for key in mergedKeys {
+            self[key, default: City()].merge(other[key, default: City()])
+        }
+    }
 }
 
 public typealias Subbuffer = Slice<UnsafeRawBufferPointer>
@@ -52,6 +68,40 @@ public extension Subbuffer {
     }
 }
 
+func partition(buffer: Subbuffer, into count: Int) throws -> [Subbuffer] {
+    let partitionSize = (buffer.endIndex - buffer.startIndex) / count
+    let estimatedBoundaries = (1...count-1).map { $0 * partitionSize }
+
+    let startBoundaries = try estimatedBoundaries.map { boundary in
+        var temp = buffer[boundary..<buffer.endIndex]
+        _ = try temp.parseUntilNewline()
+        return temp.startIndex
+    }
+    
+    var buffers = [Subbuffer]()
+    var start = buffer.startIndex
+    for end in startBoundaries {
+        buffers.append(buffer[start..<end])
+        start = end
+    }
+    buffers.append(buffer[start..<buffer.endIndex])
+    return buffers
+}
+
+func parse(buffer: Subbuffer) async throws -> [String: City] {
+    var cities = [String: City]()
+    var subbuffer = buffer
+    var city: String
+    var temp: Double
+    
+    while !subbuffer.isEmpty {
+        city = try subbuffer.parseUntilSemicolon()
+        temp = try Double(subbuffer.parseUntilNewline())!
+        cities[city, default: City()].add(temp)
+    }
+    return cities
+}
+
 func main() async throws {
     guard CommandLine.arguments.count >= 2 else {
         print("missing file argument")
@@ -59,6 +109,8 @@ func main() async throws {
     }
     
     let file = CommandLine.arguments[1]
+    let partitionCount = CommandLine.arguments.count >= 3 ? Int(CommandLine.arguments[2])! : 8
+
     let cwdPath = FileManager.default.currentDirectoryPath
     var url: URL
     if file.first == "/" {
@@ -71,21 +123,29 @@ func main() async throws {
         return
     }
     
-    var cities = [String: City]()
-  
     let inputData = try Data(contentsOf: url, options: .mappedIfSafe)
-    try inputData.withUnsafeBytes { unsafeRawBufferPointer in
-        var city: String
-        var temp: Double
-        var subbuffer = unsafeRawBufferPointer[...]
-        
-        while !subbuffer.isEmpty {
-            city = try subbuffer.parseUntilSemicolon()
-            temp = try Double(subbuffer.parseUntilNewline())!
-            cities[city, default: City()].add(temp)
+    let task = try inputData.withUnsafeBytes { unsafeRawBufferPointer in
+        let subbuffer = unsafeRawBufferPointer[...]
+        let buffers = try partition(buffer: subbuffer, into: partitionCount)
+        return Task {
+            try await withThrowingTaskGroup(of: [String: City].self) { group in
+                for buffer in buffers {
+                    group.addTask {
+                        try await parse(buffer: buffer)
+                    }
+                }
+                
+                var cities = [String: City]()
+                for try await partition in group {
+                    // need to merge partitions
+                    cities.merge(partition)
+                }
+                return cities
+            }
         }
     }
     
+    let cities = try await task.value
     for city in cities.keys.sorted() {
         let c = cities[city]!
         let min = String(format: "%.1f", c.minValue)
