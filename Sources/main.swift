@@ -2,17 +2,17 @@
 import Foundation
 
 struct City {
-    var total: Double
+    var total: Int
     var count: Int
-    var minValue = Double.greatestFiniteMagnitude
-    var maxValue = -(Double.greatestFiniteMagnitude)
+    var minValue = Int.max
+    var maxValue = Int.min
 
     init() {
         total = 0
         count = 0
     }
     
-    mutating func add(_ value: Double) {
+    mutating func add(_ value: Int) {
         total += value
         count += 1
         minValue = min(value, minValue)
@@ -60,12 +60,26 @@ public extension Subbuffer {
         return match.string
     }
     
-    mutating func parseUntilNewline() throws -> String {
+    mutating func parseTemperature() throws -> Int {
         // hex ascii code for carriage return or new line
         let match = prefix { $0 != 0x0D && $0 != 0x0A }
         self = dropFirst(match.count + 1)
-        return match.string
+        var value = 0
+        var negative = false
+        for i in match.startIndex..<match.endIndex {
+            let c = match[i]
+            if c == 45 { // ascii for `-`
+                negative = true
+            } else {
+                if c > 47 {
+                    value = (value * 10) + (Int(c) - 48)
+                }
+            }
+        }
+        value = negative ? -value : value
+        return value
     }
+
 }
 
 func partition(buffer: Subbuffer, into count: Int) throws -> [Subbuffer] {
@@ -74,7 +88,7 @@ func partition(buffer: Subbuffer, into count: Int) throws -> [Subbuffer] {
 
     let startBoundaries = try estimatedBoundaries.map { boundary in
         var temp = buffer[boundary..<buffer.endIndex]
-        _ = try temp.parseUntilNewline()
+        _ = try temp.parseTemperature()
         return temp.startIndex
     }
     
@@ -92,11 +106,11 @@ func parse(buffer: Subbuffer) async throws -> [String: City] {
     var cities = [String: City]()
     var subbuffer = buffer
     var city: String
-    var temp: Double
+    var temp: Int
     
     while !subbuffer.isEmpty {
         city = try subbuffer.parseUntilSemicolon()
-        temp = try Double(subbuffer.parseUntilNewline())!
+        temp = try subbuffer.parseTemperature()
         cities[city, default: City()].add(temp)
     }
     return cities
@@ -148,9 +162,9 @@ func main() async throws {
     let cities = try await task.value
     for city in cities.keys.sorted() {
         let c = cities[city]!
-        let min = String(format: "%.1f", c.minValue)
-        let avg = String(format: "%.1f", c.total / Double(c.count))
-        let max = String(format: "%.1f", c.maxValue)
+        let min = String(format: "%.1f", Float(c.minValue)/10)
+        let avg = String(format: "%.1f", Float(c.total) / (10 * Float(c.count)))
+        let max = String(format: "%.1f", Float(c.maxValue)/10)
         print("\(city)=\(min)/\(avg)/\(max),")
     }
 }

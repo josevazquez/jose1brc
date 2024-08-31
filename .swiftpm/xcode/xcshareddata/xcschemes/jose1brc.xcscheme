@@ -52,7 +52,7 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "/Users/jose/src/temp/1brc/data/i1.txt"
-            isEnabled = "NO">
+            isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "/Users/jose/src/temp/1brc/data/i2.txt"
@@ -60,7 +60,7 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "/Users/jose/src/temp/1brc/data/i7.txt"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "/Users/jose/src/temp/1brc/data/i8.txt"
