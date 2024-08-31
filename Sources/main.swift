@@ -61,21 +61,14 @@ public extension Subbuffer {
     }
     
     mutating func parseTemperature() throws -> Int {
-
-//        let match = prefix { $0 != 0x0D && $0 != 0x0A }
-//        self = dropFirst(match.count + 1)
-        
         var value = 0
         var negative = false
 
-//        print("\n\(match.string) \(match.startIndex):\(match.endIndex) ------")
         for i in startIndex..<endIndex {
             let c = self[i]
-//            print("\(i): \(c) \(Character(UnicodeScalar(c)))")
             if c == 0x0D || c == 0x0A {
                 let count = i - startIndex
                 self = dropFirst(count + 1)
-//                print("\(match.count + 1) vs \(count + 1)")
                 break
             }
             if c == 45 { // ascii for `-`
@@ -151,7 +144,6 @@ func main() async throws {
     let task = try inputData.withUnsafeBytes { unsafeRawBufferPointer in
         let subbuffer = unsafeRawBufferPointer[...]
         let buffers = try partition(buffer: subbuffer, into: partitionCount)
-//        let buffers = [subbuffer]
         return Task {
             try await withThrowingTaskGroup(of: [String: City].self) { group in
                 for buffer in buffers {
