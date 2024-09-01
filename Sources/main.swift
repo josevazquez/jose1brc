@@ -27,8 +27,15 @@ struct City {
     }
 }
 
-extension [String: City] {
-    mutating func merge(_ other: [String: City]) {
+
+struct Result {
+    let cities: [Int: City]
+    let names: [Int: String]
+}
+
+
+extension [Int: City] {
+    mutating func merge(_ other: [Int: City]) {
         let mergedKeys = Set(keys).union(other.keys)
         for key in mergedKeys {
             self[key, default: City()].merge(other[key, default: City()])
@@ -36,9 +43,9 @@ extension [String: City] {
     }
 }
 
+
 public typealias Subbuffer = Slice<UnsafeRawBufferPointer>
 public extension Subbuffer {
-    
     var string: String {
         return String(decoding: base[startIndex..<endIndex], as: UTF8.self)
     }
@@ -78,8 +85,8 @@ public extension Subbuffer {
         value = negative ? -value : value
         return value
     }
-
 }
+
 
 func partition(buffer: Subbuffer, into count: Int) throws -> [Subbuffer] {
     let partitionSize = (buffer.endIndex - buffer.startIndex) / count
@@ -101,18 +108,44 @@ func partition(buffer: Subbuffer, into count: Int) throws -> [Subbuffer] {
     return buffers
 }
 
-func parse(buffer: Subbuffer) async throws -> [String: City] {
-    var cities = [String: City]()
-    var subbuffer = buffer
-    var city: String
-    var temp: Int
+func parse(_ input: Subbuffer) async throws -> Result {
+    var buffer = input
+    var cities = [Int: City]()
+    var names = [Int: String]()
     
-    while !subbuffer.isEmpty {
-        city = try subbuffer.parseUntilSemicolon()
-        temp = try subbuffer.parseTemperature()
-        cities[city, default: City()].add(temp)
+    while !buffer.isEmpty {
+        // parserUntilSemicolon
+        // city = try buffer.parseUntilSemicolon()
+        
+        
+        var end = buffer.endIndex
+        var cityId = 2147483647
+        for index in buffer.startIndex..<buffer.endIndex {
+            let byte = buffer[index]
+            if byte == 0x3B {  // hex ascii code for ';'
+                end = index
+                break
+            } else {
+                // hash = hash * 33 XOR charCode (bound into 32bits).
+                //hash = (((hash << 5) + hash) ^ string.charCodeAt(i)) & limit;
+                
+                // 2,147,483,647 is the largest 32bit prime number according to the internet
+                //cityId += Int(byte)
+                cityId = (((cityId << 5) + cityId) ^ Int(byte)) & 0xffff_ffff_ffff_ff
+            }
+        }
+        if !names.keys.contains(cityId) {
+            let match = buffer[buffer.startIndex..<end]
+            names[cityId] = match.string
+        }
+    
+        buffer = buffer.dropFirst(end - buffer.startIndex + 1)
+
+        
+        let temp = try buffer.parseTemperature()
+        cities[cityId, default: City()].add(temp)
     }
-    return cities
+    return Result(cities: cities, names: names)
 }
 
 func main() async throws {
@@ -141,30 +174,37 @@ func main() async throws {
         let subbuffer = unsafeRawBufferPointer[...]
         let buffers = try partition(buffer: subbuffer, into: partitionCount)
         return Task {
-            try await withThrowingTaskGroup(of: [String: City].self) { group in
+            try await withThrowingTaskGroup(of: Result.self) { group in
                 for buffer in buffers {
                     group.addTask {
-                        try await parse(buffer: buffer)
+                        try await parse(buffer)
                     }
                 }
                 
-                var cities = [String: City]()
+                var cities = [Int: City]()
+                var names = [Int: String]()
                 for try await partition in group {
                     // need to merge partitions
-                    cities.merge(partition)
+                    cities.merge(partition.cities)
+                    names = partition.names
                 }
-                return cities
+                return Result(cities: cities, names: names)
             }
         }
     }
     
-    let cities = try await task.value
-    for city in cities.keys.sorted() {
-        let c = cities[city]!
+    let result = try await task.value
+    var idsByName = [String: Int]()
+    for (key, name) in result.names {
+        idsByName[name] = key
+    }
+    let sortedCityIDs =  idsByName.keys.sorted().compactMap { idsByName[$0] }
+    for cityId in sortedCityIDs {
+        let c = result.cities[cityId]!
         let min = String(format: "%.1f", Float(c.minValue)/10)
         let avg = String(format: "%.1f", Float(c.total) / (10 * Float(c.count)))
         let max = String(format: "%.1f", Float(c.maxValue)/10)
-        print("\(city)=\(min)/\(avg)/\(max),")
+        print("\(result.names[cityId]!)=\(min)/\(avg)/\(max),")
     }
 }
 
