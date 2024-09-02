@@ -194,7 +194,6 @@ func main() async throws {
     }
 
     let outputURL = URL(fileURLWithPath: cwdPath).appending(path: "output.txt")
-    print(outputURL.path())
     freopen(outputURL.path().cString(using: .ascii), "w", stdout)
     
     let result = try await task.value
