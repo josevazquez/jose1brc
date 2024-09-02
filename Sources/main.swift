@@ -192,6 +192,10 @@ func main() async throws {
             }
         }
     }
+
+    let outputURL = URL(fileURLWithPath: cwdPath).appending(path: "output.txt")
+    print(outputURL.path())
+    freopen(outputURL.path().cString(using: .ascii), "w", stdout)
     
     let result = try await task.value
     var idsByName = [String: Int]()
@@ -204,7 +208,8 @@ func main() async throws {
         let min = String(format: "%.1f", Float(c.minValue)/10)
         let avg = String(format: "%.1f", Float(c.total) / (10 * Float(c.count)))
         let max = String(format: "%.1f", Float(c.maxValue)/10)
-        print("\(result.names[cityId]!)=\(min)/\(avg)/\(max),")
+        let str = "\(result.names[cityId]!)=\(min)/\(avg)/\(max),"
+        print(str)
     }
 }
 
